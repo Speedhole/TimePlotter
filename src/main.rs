@@ -22,11 +22,11 @@ use serde::Deserialize;
 //     Division: String,
 // }
 
-#[derive(Debug, Clone, Copy)]
-struct MonthData {
-    month: i32,
-    hours: f32,
-}
+// #[derive(Debug, Clone, Copy)]
+// struct MonthData {
+//     month: i32,
+//     hours: f32,
+// }
 
 
 
@@ -41,21 +41,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     type Record = HashMap<String, String>;
 
-    let mut year_data = [
-        MonthData{month: 1, hours: 0.0}, 
-        MonthData{month: 2, hours: 0.0},
-        MonthData{month: 3, hours: 0.0},
-        MonthData{month: 4, hours: 0.0},
-        MonthData{month: 5, hours: 0.0}, 
-        MonthData{month: 6, hours: 0.0},
-        MonthData{month: 7, hours: 0.0},
-        MonthData{month: 8, hours: 0.0}, 
-        MonthData{month: 9, hours: 0.0},
-        MonthData{month: 10, hours: 0.0},
-        MonthData{month: 11, hours: 0.0}, 
-        MonthData{month: 12, hours: 0.0},];
+    
 
-    let mut total_time_per_gl = HashMap::new();
+    //this is a hashmap with the gl/month tuple as a key, 
+    //the value is the number of hours
+    let mut total_time_per_gl: HashMap<(String, i32), f32> = HashMap::new();
 
     //for result in reader.deserialize::<TimeSheetEntry>() {
     for result in  reader.deserialize() {
@@ -73,48 +63,28 @@ fn main() -> Result<(), Box<dyn Error>> {
             .to_string()
             .parse::<i32>()
             .unwrap();
-        println!("Month= {}", month);
+        //println!("Month= {}", month);
+
+        let work_order = record.get("Work Order Title").unwrap().to_string();
 
         // Calculate the total time per month for each WorkOrder
-        let total_time = total_time_per_gl.entry(record.get("Work Order Title").expect("WorkOrder not found").clone()).or_insert(year_data.clone());
-        let mut month_data: MonthData = *total_time.get(usize::try_from(month-1).unwrap()).expect("Could not find MonthData");
-        month_data.hours += record.get("Hours").unwrap().parse::<f32>().unwrap();
-        // total_time_per_gl.entry(record.get("Work Order Title").expect("WorkOrder not found").clone()).or_insert(year_data.clone())
-        //     .get(usize::try_from(month-1).unwrap()).expect("Could not find MonthData").hours += record.get("Hours").unwrap().parse::<f32>().unwrap();
+        // let total_time = total_time_per_gl.entry(record.get("Work Order Title").expect("WorkOrder not found").clone()).or_insert(year_data.clone());
+        // let mut month_data: MonthData = *total_time.get(usize::try_from(month-1).unwrap()).expect("Could not find MonthData");
+        // month_data.hours += record.get("Hours").unwrap().parse::<f32>().unwrap();
+
+        let mut total_time = *total_time_per_gl.entry((work_order.clone(), month.clone()).clone()).or_insert(0.0);
+        total_time = total_time + record.get("Hours").unwrap().parse::<f32>().unwrap();
+        total_time_per_gl.insert((work_order, month), total_time);
+
+    
         
-        
-        
-        
-        for (key, value) in &total_time_per_gl {
-            println!("{}: {}", key, value[0].hours);
-            println!("{}: {}", key, value[1].hours);
-            println!("{}: {}", key, value[2].hours);
-            println!("{}: {}", key, value[3].hours);
-            println!("{}: {}", key, value[4].hours);
-            println!("{}: {}", key, value[5].hours);
-            println!("{}: {}", key, value[6].hours);
-            println!("{}: {}", key, value[7].hours);
-            println!("{}: {}", key, value[8].hours);
-            println!("{}: {}", key, value[9].hours);
-            println!("{}: {}", key, value[10].hours);
-            println!("{}: {}", key, value[11].hours);
-        }
+            
     }
 
-    // for (key, value) in &total_time_per_gl {
-    //         println!("{}: {}", key, value[0].hours);
-    //         println!("{}: {}", key, value[1].hours);
-    //         println!("{}: {}", key, value[2].hours);
-    //         println!("{}: {}", key, value[3].hours);
-    //         println!("{}: {}", key, value[4].hours);
-    //         println!("{}: {}", key, value[5].hours);
-    //         println!("{}: {}", key, value[6].hours);
-    //         println!("{}: {}", key, value[7].hours);
-    //         println!("{}: {}", key, value[8].hours);
-    //         println!("{}: {}", key, value[9].hours);
-    //         println!("{}: {}", key, value[10].hours);
-    //         println!("{}: {}", key, value[11].hours);
-    //     }
+   
+    for (key, value) in &total_time_per_gl {
+        println!("GL={} Month={}: Hours={}", key.0, key.1, value);
+    }
 
     // // Generate the plot
     // let root = BitMapBackend::new("plot.png", (800, 600)).into_drawing_area();
