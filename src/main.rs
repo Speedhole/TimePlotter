@@ -1,19 +1,89 @@
+use std::alloc::System;
+use std::collections::btree_map::Entry;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 //use std::io;
 use csv::ReaderBuilder;
-use serde::Deserialize;
 use plotters::prelude::*;
+use serde::Deserialize;
+
+// struct GL_Info {
+
+// }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    //read in GL codes
+    let gl_file = File::open("EAM_GL_Codes.csv")?;
+    let mut reader = ReaderBuilder::new()
+        .has_headers(true)
+        .trim(csv::Trim::Headers)
+        .from_reader(gl_file);
+
+    type Record = HashMap<String, String>;
+    //let mut system_gl_codes: HashMap<String, Vec<String>> = HashMap::new();
+    let mut system_gl_codes: HashMap<String, Vec<String>> = HashMap::new();
+
+    //This list is hard coded, but should not change often
+    //let system_list: Vec<String> = vec![01B1-1, 02B1-1, 02B1-2, 02B2-2, 04ID-1, 04ID-2HE];
+
+    for result in reader.deserialize() {
+        let record: Record = result?;
+
+        let mut system = record
+            .get("System")
+            .expect("Could not find System in GL codes csv")
+            .to_owned();
+        let gl_code = record
+            .get("GL Account")
+            .expect("Could not find GL in GL codes csv")
+            .to_owned();
+
+        //some lines do not have GL Codes, we need to skip them
+        if gl_code == "" {
+            continue;
+        }
+
+        //fix the system names
+        match system.chars().nth(0) {
+            Some(x) if x.is_ascii_digit() => {
+                system = format!(
+                    "{}-{}",
+                    system.split("-").nth(0).unwrap(),
+                    system.split("-").nth(1).unwrap()
+                );
+                //println!("System={}", system);
+            }
+            Some(x) if x.is_alphabetic() => {
+                system = format!("{}", system.split("-").nth(0).unwrap());
+                //println!("System={}", system);
+            }
+            Some(_) => println!("System charater @ 0 is not aplfanumeric"),
+            None => println!("System does not have a charater 0"),
+        }
+
+        //insert data
+        if let Some(gl_vec) = system_gl_codes.get_mut(system.as_str()) {
+            if !gl_vec.contains(&gl_code) {
+                gl_vec.push(gl_code);
+            }
+        } else {
+            system_gl_codes.insert(system, vec![gl_code]);
+        }
+    }
+
+    for sys in system_gl_codes {
+        for gl in sys.1.into_iter() {
+            println!("System:{} gl:{}", sys.0, gl);
+        }
+    }
+
+    //Read in timesheet data
     let file = File::open("CID_Jan.csv")?;
     let mut reader = ReaderBuilder::new()
         .has_headers(true)
         .trim(csv::Trim::Headers)
         .from_reader(file);
-
-    type Record = HashMap<String, String>;
 
     //this is a hashmap with the gl/month tuple as a key,
     //the value is the number of hours
@@ -28,9 +98,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             //we reached the end of the file or an empty line
             println!("we reached an empty line");
             continue;
-        }
-        else {
-            println!("record value = {}", record.contains_key("Date"))
+        } else {
+            //println!("record value = {}", record.contains_key("Date"))
         }
         // for (key, value) in &record {
         //     println!("{}: {}", key, value);
@@ -50,7 +119,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         // println!("month = {}", month);
 
         // TODO: remove everything from .split() once moved to GL codes
-        let mut work_order = record.get("Work Order Title").unwrap().to_string().split(' ').nth(0).unwrap().to_string();
+        let mut work_order = record
+            .get("Work Order Title")
+            .unwrap()
+            .to_string()
+            .split(' ')
+            .nth(0)
+            .unwrap()
+            .to_string();
 
         //some lines do not have a proper code as they are "special".
         //in these cases, we need to take the name from the paycode
@@ -80,10 +156,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         // total_time = total_time + record.get("Hours").unwrap().parse::<f32>().unwrap();
         // total_time_per_gl.insert((work_order, month), total_time);
 
-
         //test code
-        let mut data: HashMap<i32,f32> = HashMap::new();
-        let _d= data.entry(month.clone()).or_insert(0.0);
+        let mut data: HashMap<i32, f32> = HashMap::new();
+        let _d = data.entry(month.clone()).or_insert(0.0);
 
         if month == 2 {
             println!("month = 2");
@@ -91,11 +166,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let mut map = total_time_per_gl.entry(work_order.clone()).or_insert(data);
         //println!("map.keys = {:?}", map.get(&month));
-        let mut total_time:f32 = 0.0;
-        if map.contains_key(&month){
+        let mut total_time: f32 = 0.0;
+        if map.contains_key(&month) {
             total_time = *map.get(&month).unwrap();
         }
-        
+
         total_time = total_time + record.get("Hours").unwrap().parse::<f32>().unwrap();
         map.insert(month, total_time);
     }
@@ -107,7 +182,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //get max hour value
     let mut max_hours: f32 = 0.0;
     for (outer_key, map) in &total_time_per_gl {
-        for(inner_key, val) in map {
+        for (inner_key, val) in map {
             if max_hours < *val {
                 max_hours = *val;
             }
@@ -115,10 +190,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-
     //get total number of GL codes used
     let gl_count = total_time_per_gl.len();
-    println!("Total number of GLs = {} with max value of {}", gl_count, max_hours);
+    println!(
+        "Total number of GLs = {} with max value of {}",
+        gl_count, max_hours
+    );
 
     // // // Generate the plot
     // let root = BitMapBackend::new("plot.png", (800, 600)).into_drawing_area();
