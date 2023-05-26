@@ -3,7 +3,8 @@ use std::collections::btree_map::Entry;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
-//use std::io;
+use std::io;
+use std::io::Read;
 use csv::ReaderBuilder;
 use plotters::prelude::*;
 use serde::Deserialize;
@@ -13,7 +14,8 @@ use serde::Deserialize;
 // }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    //read in GL codes
+
+    //read in systems and GL codes
     let gl_file = File::open("EAM_GL_Codes.csv")?;
     let mut reader = ReaderBuilder::new()
         .has_headers(true)
@@ -55,6 +57,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 //println!("System={}", system);
             }
             Some(x) if x.is_alphabetic() => {
+                //we only take the first word or up to the first "-" in this case
+                system = format!("{}", system.split(" ").nth(0).unwrap());
                 system = format!("{}", system.split("-").nth(0).unwrap());
                 //println!("System={}", system);
             }
@@ -66,17 +70,54 @@ fn main() -> Result<(), Box<dyn Error>> {
         if let Some(gl_vec) = system_gl_codes.get_mut(system.as_str()) {
             if !gl_vec.contains(&gl_code) {
                 gl_vec.push(gl_code);
+                gl_vec.sort();
             }
         } else {
             system_gl_codes.insert(system, vec![gl_code]);
         }
+
+
     }
 
-    for sys in system_gl_codes {
-        for gl in sys.1.into_iter() {
-            println!("System:{} gl:{}", sys.0, gl);
-        }
+    // for sys in system_gl_codes {
+    //     for gl in sys.1.into_iter() {
+    //         println!("System:{} gl:{}", sys.0, gl);
+    //     }
+    // }
+
+    //print out list of systems
+    //this can be used for producing the system to division links
+    print!("List of Systems: ");
+    let mut sorted_systems = Vec::new();
+    for key in system_gl_codes.keys(){
+        sorted_systems.push(key);
     }
+    sorted_systems.sort();
+    for sys in sorted_systems {
+        print!("{} ", sys);
+    }
+    println!("");
+
+
+
+
+    //read in associations
+    let mut json_file = File::open("SystemAssociations.json").expect("Failed to open file.  You can create this file from the list generated above.");
+
+    // Read the file content into a string
+    let mut contents = String::new();
+    json_file.read_to_string(&mut contents).expect("Failed to read file");
+
+    // Deserialize the JSON array into a vector of MyData objects
+    let system_associations: HashMap<String, String> = serde_json::from_str(&contents).expect("Failed to parse JSON");
+
+    // Iterate over the vector and print the data
+    for obj in system_associations {
+        println!("System: {}   Owner:{}", obj.0, obj.1);
+    }
+
+
+
 
     //Read in timesheet data
     let file = File::open("CID_Jan.csv")?;
@@ -159,10 +200,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         //test code
         let mut data: HashMap<i32, f32> = HashMap::new();
         let _d = data.entry(month.clone()).or_insert(0.0);
-
-        if month == 2 {
-            println!("month = 2");
-        }
 
         let mut map = total_time_per_gl.entry(work_order.clone()).or_insert(data);
         //println!("map.keys = {:?}", map.get(&month));
